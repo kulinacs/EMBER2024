@@ -149,6 +149,77 @@ eval_lgbm.py -- Evaluate a classifier on the test and challenge sets
 
 To learn more about how we built EMBER2024, check out our [vtpipeline-rs](https://github.com/FutureComputing4AI/vtpipeline-rs) repository!
 
+## Updates!
+
+#### Capa
+
+[Capa](https://github.com/mandiant/capa) is a malware analysis tool that identifies a file's potential behaviors. For each file, it outputs Mitre ATT&CK techniques, objectives and behaviors from the Malware Behavior Catalogue Matrix, and other capabilities. An example is shown below. 
+
+```
++----------------------+---------------------------------------------------------------------------+
+| ATT&CK Tactic        | ATT&CK Technique                                                          |
++----------------------+---------------------------------------------------------------------------+
+| COLLECTION           | Clipboard Data [T1115]                                                    |
+|                      | Input Capture::Keylogging [T1056.001]                                     |
+|                      | Screen Capture [T1113]                                                    |
+| DEFENSE EVASION      | File and Directory Permissions Modification [T1222]                       |
+|                      | Obfuscated Files or Information [T1027]                                   |
+| EXECUTION            | Shared Modules [T1129]                                                    |
+| PRIVILEGE ESCALATION | Access Token Manipulation [T1134]                                         |
+| ...                  | ...                                                                       |
++----------------------+---------------------------------------------------------------------------+
+
++----------------------+---------------------------------------------------------------------------+
+| MBC Objective            | MBC Behavior                                                          |
++----------------------+---------------------------------------------------------------------------+
+| ANTI-BEHAVIORAL ANALYSIS | Debugger Detection::Software Breakpoints [B0001.025]                  |
+|                          | Debugger Detection::Timing/Delay Check GetTickCount [B0001.032]       |
+| COLLECTION               | Keylogging::Polling [F0002.002]                                       |
+|                          | Screen Capture::WinAPI [E1113.m01]                                    |
+| COMMAND AND CONTROL      | C2 Communication::Receive Data [B0030.002]                            |
+|                          | C2 Communication::Send Data [B0030.001]                               |
+| ...                      | ...                                                                   |
++----------------------+---------------------------------------------------------------------------+
+
++----------------------+---------------------------------------------------------------------------+
+| Capability                                          | Namespace                                  |
++----------------------+---------------------------------------------------------------------------+
+| log keystrokes via polling (9 matches)              | collection/keylog                          |
+| capture screenshot (2 matches)                      | collection/screenshot                      |
+| receive data (5 matches)                            | communication                              |
+| send data (2 matches)                               | communication                              |
+| create HTTP request                                 | communication/http/client                  |
+| get socket status                                   | communication/socket                       |
+| ...                                                 | ...                                        |
++----------------------+---------------------------------------------------------------------------+
+```
+
+EMBER2024 has been updated to include Capa results for Win32, Win64, .NET, and ELF files.
+
+```
+{
+  "caps": [
+    {"Capability": "Find process by name", "Namespace": "host-interaction/process/list", "Addrs": []},
+    {"Capability": "Terminate process", "Namespace": "host-interaction/process/terminate", "Addrs": ["0x6000025"]},
+    {"Capability": "Move file", "Namespace": "host-interaction/file-system/move", "Addrs": []},
+    ...
+  ],
+  "ttps": [
+    {"Tactic": "DISCOVERY", "Technique": "Process Discovery [T1057]"},
+    {"Tactic": "DISCOVERY", "Technique": "File and Directory Discovery [T1083]"}
+  ],
+  "mbc": [
+    {"Objective": "OPERATING SYSTEM", "Behavior": "Console [C0033]"},
+    {"Objective": "PROCESS", "Behavior": "Terminate Process [C0018]"},
+    {"Objective": "FILE SYSTEM", "Behavior": "Move File [C0063]"},
+    {"Objective": "DISCOVERY", "Behavior": "File and Directory Discovery [E1083]"},
+    ....
+  ],
+  ...
+}
+```
+
+In many cases, Capa identifies the function(s) that the capability is present in. We created a [supplemental dataset](https://huggingface.co/datasets/joyce8/EMBER2024-capa) with the raw bytes and disassembly of 16,356,790 functions from malicious files in EMBER2024.
 
 ## Citing
 
