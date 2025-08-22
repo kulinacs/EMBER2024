@@ -64,7 +64,6 @@ def gather_feature_paths(data_dir: Path | str, subset: str, filetype: str = None
     return feature_paths
 
 
-
 def read_label(raw_features_string: str, label_type: str) -> str:
     """
     Read the label or tag from raw features and return it
@@ -117,24 +116,26 @@ def vectorize(irow: int, raw_features_string: str, X_path: str, y_path: str, ext
     if label is None and (label_type == "label" or label_type == "family"):
         y = np.memmap(y_path, dtype=np.int32, mode="r+", shape=nrows)
         y[irow] = -1
-    elif isinstance(label, int): # Benign/Malicious labels (binary)
+    elif isinstance(label, int):  # Benign/Malicious labels (binary)
         y = np.memmap(y_path, dtype=np.int32, mode="r+", shape=nrows)
         y[irow] = label
-    elif isinstance(label, str): # Family labels (multiclass)
+    elif isinstance(label, str):  # Family labels (multiclass)
         y = np.memmap(y_path, dtype=np.int32, mode="r+", shape=nrows)
         if label_map.get(label) is not None:
             y[irow] = label_map[label]
         else:
             y[irow] = -1
-    elif isinstance(label, list): # Tags (multiclass, multilabel)
-        y = np.memmap(y_path, dtype=np.int32, mode="r+", shape=(nrows, len(label_map.keys())))
+    elif isinstance(label, list):  # Tags (multiclass, multilabel)
+        y = np.memmap(y_path, dtype=np.int32, mode="r+",
+                      shape=(nrows, len(label_map.keys())))
         for l in label:
             if label_map.get(l) is not None:
-                y[irow,label_map[l]] = 1
+                y[irow, label_map[l]] = 1
     else:
         raise ValueError("Unable to parse label format")
 
-    X = np.memmap(X_path, dtype=np.float32, mode="r+", shape=(nrows, extractor.dim))
+    X = np.memmap(X_path, dtype=np.float32, mode="r+",
+                  shape=(nrows, extractor.dim))
     X[irow] = feature_vector
 
 
@@ -150,17 +151,20 @@ def vectorize_subset(X_path: Path, y_path: Path, raw_feature_paths: list[Path], 
     Vectorize a subset of data and write it to disk
     """
     # Create space on disk to write features to
-    X = np.memmap(X_path, dtype=np.float32, mode="w+", shape=(nrows, extractor.dim))
+    X = np.memmap(X_path, dtype=np.float32, mode="w+",
+                  shape=(nrows, extractor.dim))
     if label_type == "label" or label_type == "family":
         y = np.memmap(y_path, dtype=np.float32, mode="w+", shape=nrows)
     else:
-        y = np.memmap(y_path, dtype=np.float32, mode="w+", shape=(nrows, len(label_map.keys())))
+        y = np.memmap(y_path, dtype=np.float32, mode="w+",
+                      shape=(nrows, len(label_map.keys())))
     del X, y
 
     # Distribute the vectorization work
     pool = multiprocessing.Pool()
     argument_iterator = (
-        (irow, raw_features_string, X_path, y_path, extractor, nrows, label_type, label_map)
+        (irow, raw_features_string, X_path, y_path,
+         extractor, nrows, label_type, label_map)
         for irow, raw_features_string in enumerate(raw_feature_iterator(raw_feature_paths))
     )
     for _ in tqdm.tqdm(pool.imap_unordered(vectorize_unpack, argument_iterator), total=nrows):
@@ -188,7 +192,8 @@ def create_vectorized_features(data_dir: Path | str, label_type: str = "label", 
     group - malware threat group prediction (multiclass, multi-label)
     """
     # Ignore empty tags and self-describing file format tags
-    ignore_tags = set(["", "win32", "win64", "elf", "linux", "pdf", "apk", "android"])
+    ignore_tags = set(["", "win32", "win64", "elf",
+                      "linux", "pdf", "apk", "android"])
 
     extractor = PEFeatureExtractor()
     data_path: Path = Path(data_dir)
@@ -207,8 +212,9 @@ def create_vectorized_features(data_dir: Path | str, label_type: str = "label", 
     # Map string labels/tags to numeric labels
     label_map = {}
     i = 0
-    if label_type != "label": # No work needed for the default malicious/benign labels
-        train_label_counts = read_label_subset(train_feature_paths, train_nrows, label_type)
+    if label_type != "label":  # No work needed for the default malicious/benign labels
+        train_label_counts = read_label_subset(
+            train_feature_paths, train_nrows, label_type)
 
         # Remove labels/tags that appear fewer than class_min time
         for l, count in train_label_counts.items():
@@ -219,10 +225,12 @@ def create_vectorized_features(data_dir: Path | str, label_type: str = "label", 
                 i += 1
 
     print("Vectorizing training set")
-    vectorize_subset(X_train_path, y_train_path, train_feature_paths, extractor, train_nrows, label_type, label_map)
+    vectorize_subset(X_train_path, y_train_path, train_feature_paths,
+                     extractor, train_nrows, label_type, label_map)
 
-    if label_type != "label": # No work needed for the default malicious/benign labels
-        test_label_counts = read_label_subset(test_feature_paths, test_nrows, label_type)
+    if label_type != "label":  # No work needed for the default malicious/benign labels
+        test_label_counts = read_label_subset(
+            test_feature_paths, test_nrows, label_type)
 
         # Remove labels/tags that appear fewer than class_min time
         for l, count in test_label_counts.items():
@@ -235,15 +243,16 @@ def create_vectorized_features(data_dir: Path | str, label_type: str = "label", 
                 i += 1
 
     print("Vectorizing test set")
-    vectorize_subset(X_test_path, y_test_path, test_feature_paths, extractor, test_nrows, label_type, label_map)
+    vectorize_subset(X_test_path, y_test_path, test_feature_paths,
+                     extractor, test_nrows, label_type, label_map)
 
     print("Vectorizing challenge set")
     X_test_path = data_path / "X_challenge.dat"
     y_test_path = data_path / "y_challenge.dat"
     raw_feature_paths = gather_feature_paths(data_path, "challenge")
     nrows = sum([1 for fp in raw_feature_paths for _ in fp.open()])
-    vectorize_subset(X_test_path, y_test_path, raw_feature_paths, extractor, nrows)
-
+    vectorize_subset(X_test_path, y_test_path,
+                     raw_feature_paths, extractor, nrows)
 
 
 def read_vectorized_features(data_dir: Path | str, subset: str = "train") -> tuple[np.ndarray, np.ndarray]:
@@ -289,16 +298,22 @@ def read_metadata(data_dir: Path | str) -> pl.DataFrame:
     data_path: Path = Path(data_dir)
 
     train_feature_paths = gather_feature_paths(data_path, "train")
-    train_records = list(pool.imap(read_metadata_record, raw_feature_iterator(train_feature_paths)))
-    train_metadf = pl.DataFrame(train_records).with_columns(subset=pl.lit("train")).select(ORDERED_COLUMNS)
+    train_records = list(pool.imap(read_metadata_record,
+                         raw_feature_iterator(train_feature_paths)))
+    train_metadf = pl.DataFrame(train_records).with_columns(
+        subset=pl.lit("train")).select(ORDERED_COLUMNS)
 
     test_feature_paths = gather_feature_paths(data_path, "test")
-    test_records = list(pool.imap(read_metadata_record, raw_feature_iterator(test_feature_paths)))
-    test_metadf = pl.DataFrame(test_records).with_columns(subset=pl.lit("test")).select(ORDERED_COLUMNS)
+    test_records = list(pool.imap(read_metadata_record,
+                        raw_feature_iterator(test_feature_paths)))
+    test_metadf = pl.DataFrame(test_records).with_columns(
+        subset=pl.lit("test")).select(ORDERED_COLUMNS)
 
     challenge_feature_paths = gather_feature_paths(data_path, "challenge")
-    challenge_records = list(pool.imap(read_metadata_record, raw_feature_iterator(challenge_feature_paths)))
-    challenge_metadf = pl.DataFrame(test_records).with_columns(subset=pl.lit("challenge")).select(ORDERED_COLUMNS)
+    challenge_records = list(
+        pool.imap(read_metadata_record, raw_feature_iterator(challenge_feature_paths)))
+    challenge_metadf = pl.DataFrame(test_records).with_columns(
+        subset=pl.lit("challenge")).select(ORDERED_COLUMNS)
 
     return train_metadf, test_metadf, challenge_metadf
 
@@ -353,7 +368,8 @@ def train_model(data_dir: Path | str, params: dict = {}) -> lgb.Booster:
 
     # Verify that y_train is not formatted for multi-label classification
     if len(y.shape) != 1:
-        raise ValueError("Encounted y_train with invalid shape. Use train_ovr_model() instead.")
+        raise ValueError(
+            "Encounted y_train with invalid shape. Use train_ovr_model() instead.")
 
     # Ignore files without a label/tag
     num_classes = np.max(y) + 1
@@ -361,9 +377,12 @@ def train_model(data_dir: Path | str, params: dict = {}) -> lgb.Booster:
     y = y[y != -1]
 
     # Use a stratified split to make a validation set
-    X_train, X_val, y_train, y_val = train_test_split(X, y, test_size=0.1, stratify=y)
-    train_set = lgb.Dataset(X_train, y_train, categorical_feature=[2, 3, 4, 5, 6, 701, 702])
-    val_set = lgb.Dataset(X_val, y_val, reference=train_set, categorical_feature=[2, 3, 4, 5, 6, 701, 702])
+    X_train, X_val, y_train, y_val = train_test_split(
+        X, y, test_size=0.1, stratify=y)
+    train_set = lgb.Dataset(X_train, y_train, categorical_feature=[
+                            2, 3, 4, 5, 6, 701, 702])
+    val_set = lgb.Dataset(X_val, y_val, reference=train_set,
+                          categorical_feature=[2, 3, 4, 5, 6, 701, 702])
 
     # Binary classification
     if num_classes == 2:
@@ -388,7 +407,8 @@ def train_ovr_model(data_dir: Path | str, params: dict = {}) -> lgb.Booster:
 
     # Verify that y_train is not formatted for multi-label classification
     if len(y.shape) != 2:
-        raise ValueError("Encounted y_train with invalid shape. Use train_model() instead.")
+        raise ValueError(
+            "Encounted y_train with invalid shape. Use train_model() instead.")
 
     # OvR Multilabel classification
     lgbm_models = []
@@ -399,9 +419,12 @@ def train_ovr_model(data_dir: Path | str, params: dict = {}) -> lgb.Booster:
         }
         params.update(lgbm_params)
         y_i = y[:, i]
-        X_train, X_val, y_train, y_val = train_test_split(X, y_i, test_size=0.1, stratify=y_i)
-        train_set = lgb.Dataset(X_train, y_train, categorical_feature=[2, 3, 4, 5, 6, 701, 702])
-        val_set = lgb.Dataset(X_val, y_val, reference=train_set, categorical_feature=[2, 3, 4, 5, 6, 701, 702])
+        X_train, X_val, y_train, y_val = train_test_split(
+            X, y_i, test_size=0.1, stratify=y_i)
+        train_set = lgb.Dataset(X_train, y_train, categorical_feature=[
+                                2, 3, 4, 5, 6, 701, 702])
+        val_set = lgb.Dataset(X_val, y_val, reference=train_set, categorical_feature=[
+                              2, 3, 4, 5, 6, 701, 702])
         lgbm_models.append(lgb.train(params, train_set, valid_sets=val_set))
     return lgbm_models
 

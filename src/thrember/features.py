@@ -93,8 +93,8 @@ class GeneralFileInfo(FeatureType):
             [
                 raw_obj["size"],
                 raw_obj["entropy"],
-                raw_obj["is_pe"], # categorical
-                raw_obj["start_bytes"], # categorical
+                raw_obj["is_pe"],  # categorical
+                raw_obj["start_bytes"],  # categorical
             ],
             dtype=np.float32,
         )
@@ -112,9 +112,10 @@ class ByteHistogram(FeatureType):
         super(FeatureType, self).__init__()
 
     def raw_features(self, bytez, pe):
-        counts = np.bincount(np.frombuffer(bytez, dtype=np.uint8), minlength=256)
+        counts = np.bincount(np.frombuffer(
+            bytez, dtype=np.uint8), minlength=256)
         return counts.tolist()
-    
+
     def process_raw_features(self, raw_obj):
         counts = np.array(raw_obj, dtype=np.float32)
         sum = counts.sum()
@@ -161,7 +162,8 @@ class ByteEntropyHistogram(FeatureType):
             # strided trick from here: http://www.rigtorp.se/2011/01/01/rolling-statistics-numpy.html
             shape = a.shape[:-1] + (a.shape[-1] - self.window + 1, self.window)
             strides = a.strides + (a.strides[-1],)
-            blocks = np.lib.stride_tricks.as_strided(a, shape=shape, strides=strides)[:: self.step, :]
+            blocks = np.lib.stride_tricks.as_strided(
+                a, shape=shape, strides=strides)[:: self.step, :]
 
             # from the blocks, compute histogram
             for block in blocks:
@@ -299,7 +301,8 @@ class StringExtractor(FeatureType):
             string_lengths = [len(s) for s in allstrings]
             avlength = sum(string_lengths) / len(string_lengths)
             # map printable characters 0x20 - 0x7f to an int array consisting of 0-95, inclusive
-            as_shifted_string = [b - ord(b"\x20") for b in b"".join(allstrings)]
+            as_shifted_string = [b - ord(b"\x20")
+                                 for b in b"".join(allstrings)]
             c = np.bincount(as_shifted_string, minlength=96)  # histogram count
             # distribution of characters in printable strings
             csum = c.sum()
@@ -333,7 +336,8 @@ class StringExtractor(FeatureType):
         }
 
     def process_raw_features(self, raw_obj):
-        hist_divisor = float(raw_obj["printables"]) if raw_obj["printables"] > 0 else 1.0
+        hist_divisor = float(raw_obj["printables"]
+                             ) if raw_obj["printables"] > 0 else 1.0
         string_counts = np.zeros(len(self.regex_idxs), dtype=np.float32)
         for regex, count in raw_obj["string_counts"].items():
             idx = self.regex_idxs[regex]
@@ -372,12 +376,14 @@ class SectionInfo(FeatureType):
         aoep = pe.OPTIONAL_HEADER.AddressOfEntryPoint
         for section in pe.sections:
             if section.contains_rva(aoep):
-                entry_section = section.Name.strip(b"\x00").decode(errors="ignore").lower()
+                entry_section = section.Name.strip(
+                    b"\x00").decode(errors="ignore").lower()
 
         isection = 0
         while entry_section == "" and isection < len(pe.sections):
             if pe.sections[isection].Characteristics & 0x20000000 > 0:
-                entry_section = pe.sections[isection].Name.strip(b"\x00").decode(errors="ignore").lower()
+                entry_section = pe.sections[isection].Name.strip(
+                    b"\x00").decode(errors="ignore").lower()
             isection += 1
 
         raw_obj = {"entry": entry_section}
@@ -428,10 +434,13 @@ class SectionInfo(FeatureType):
         n_sections = len(sections)
         n_zero_size = sum(1 for s in sections if s["size"] == 0)
         n_emtpy_name = sum(1 for s in sections if s["name"] == "")
-        n_rx = sum(1 for s in sections if "MEM_READ" in s["props"] and "MEM_EXECUTE" in s["props"])
+        n_rx = sum(
+            1 for s in sections if "MEM_READ" in s["props"] and "MEM_EXECUTE" in s["props"])
         n_w = sum(1 for s in sections if "MEM_WRITE" in s["props"])
-        entropies = [s["entropy"] for s in sections] + [raw_obj["overlay"]["entropy"]] + [0]
-        size_ratios = [s["size_ratio"] for s in sections] + [raw_obj["overlay"]["size_ratio"]] + [0]
+        entropies = [s["entropy"]
+                     for s in sections] + [raw_obj["overlay"]["entropy"]] + [0]
+        size_ratios = [s["size_ratio"] for s in sections] + \
+            [raw_obj["overlay"]["size_ratio"]] + [0]
         vsize_ratios = [s["vsize_ratio"] for s in sections] + [0]
 
         general = [
@@ -450,14 +459,20 @@ class SectionInfo(FeatureType):
 
         # Properties of all the individual sections
         section_sizes = [(s["name"], s["size"]) for s in sections]
-        section_sizes_hashed = FeatureHasher(50, input_type="pair").transform([section_sizes]).toarray()[0]
+        section_sizes_hashed = FeatureHasher(50, input_type="pair").transform([
+            section_sizes]).toarray()[0]
         section_vsize = [(s["name"], s["vsize"]) for s in sections]
-        section_vsize_hashed = FeatureHasher(50, input_type="pair").transform([section_vsize]).toarray()[0]
+        section_vsize_hashed = FeatureHasher(50, input_type="pair").transform([
+            section_vsize]).toarray()[0]
         section_entropy = [(s["name"], s["entropy"]) for s in sections]
-        section_entropy_hashed = FeatureHasher(50, input_type="pair").transform([section_entropy]).toarray()[0]
-        characteristics = [f"{s['name']}:{p}" for s in sections for p in s["props"]]
-        characteristics_hashed = FeatureHasher(50, input_type="string").transform([characteristics]).toarray()[0]
-        entry_name_hashed = FeatureHasher(10, input_type="string").transform([[raw_obj["entry"]]]).toarray()[0]
+        section_entropy_hashed = FeatureHasher(50, input_type="pair").transform([
+            section_entropy]).toarray()[0]
+        characteristics = [
+            f"{s['name']}:{p}" for s in sections for p in s["props"]]
+        characteristics_hashed = FeatureHasher(50, input_type="string").transform([
+            characteristics]).toarray()[0]
+        entry_name_hashed = FeatureHasher(10, input_type="string").transform([
+            [raw_obj["entry"]]]).toarray()[0]
 
         return np.hstack(
             [
@@ -502,7 +517,8 @@ class ImportsInfo(FeatureType):
                 if lib.name is not None and len(lib.name):
                     imports[dll_name].append(lib.name.decode()[:10000])
                 elif lib.ordinal is not None:
-                    imports[dll_name].append(f"{dll_name}:ordinal{lib.ordinal}")
+                    imports[dll_name].append(
+                        f"{dll_name}:ordinal{lib.ordinal}")
 
         return imports
 
@@ -512,11 +528,14 @@ class ImportsInfo(FeatureType):
 
         # Unique libraries
         libraries = list(set([l.lower() for l in raw_obj.keys()]))
-        libraries_hashed = FeatureHasher(256, input_type="string", alternate_sign=False).transform([libraries]).toarray()[0]
+        libraries_hashed = FeatureHasher(
+            256, input_type="string", alternate_sign=False).transform([libraries]).toarray()[0]
 
         # A string like "kernel32.dll:CreateFileMappingA" for each imported function
-        imports = [lib.lower() + ":" + e for lib, elist in raw_obj.items() for e in elist]
-        imports_hashed = FeatureHasher(1024, input_type="string", alternate_sign=False).transform([imports]).toarray()[0]
+        imports = [lib.lower() + ":" + e for lib, elist in raw_obj.items()
+                   for e in elist]
+        imports_hashed = FeatureHasher(
+            1024, input_type="string", alternate_sign=False).transform([imports]).toarray()[0]
 
         # Number of libraries/imports
         lengths = [len(imports), len(libraries)]
@@ -555,7 +574,8 @@ class ExportsInfo(FeatureType):
         if not raw_obj:
             return np.zeros(self.dim, dtype=np.float32)
 
-        exports_hashed = FeatureHasher(128, input_type="string").transform([raw_obj]).toarray()[0]
+        exports_hashed = FeatureHasher(
+            128, input_type="string").transform([raw_obj]).toarray()[0]
         return np.hstack([np.array([len(exports_hashed)]), exports_hashed.astype(np.float32)])
 
 
@@ -609,7 +629,8 @@ class HeaderFileInfo(FeatureType):
             "IMAGE_FILE_MACHINE_ARM64",
             "IMAGE_FILE_MACHINE_CEE",
         ]
-        self._machine_types_dict = dict([(mt, i) for i, mt in enumerate(self._machine_types)])
+        self._machine_types_dict = dict(
+            [(mt, i) for i, mt in enumerate(self._machine_types)])
         self._subsystem_types = [
             "IMAGE_SUBSYSTEM_UNKNOWN",
             "IMAGE_SUBSYSTEM_NATIVE",
@@ -626,7 +647,8 @@ class HeaderFileInfo(FeatureType):
             "IMAGE_SUBSYSTEM_XBOX",
             "IMAGE_SUBSYSTEM_WINDOWS_BOOT_APPLICATION",
         ]
-        self._subsystem_types_dict = dict([(st, i) for i, st in enumerate(self._subsystem_types)])
+        self._subsystem_types_dict = dict(
+            [(st, i) for i, st in enumerate(self._subsystem_types)])
         self._image_characteristics = [
             "RELOCS_STRIPPED",
             "EXECUTABLE_IMAGE",
@@ -726,7 +748,8 @@ class HeaderFileInfo(FeatureType):
             return raw_obj
 
         raw_obj["coff"]["timestamp"] = pe.FILE_HEADER.TimeDateStamp
-        raw_obj["coff"]["machine"] = pefile.MACHINE_TYPE.get(pe.FILE_HEADER.Machine, "IMAGE_FILE_MACHINE_UNKNOWN")
+        raw_obj["coff"]["machine"] = pefile.MACHINE_TYPE.get(
+            pe.FILE_HEADER.Machine, "IMAGE_FILE_MACHINE_UNKNOWN")
         raw_obj["coff"]["number_of_sections"] = pe.FILE_HEADER.NumberOfSections
         raw_obj["coff"]["number_of_symbols"] = pe.FILE_HEADER.NumberOfSymbols
         raw_obj["coff"]["sizeof_optional_header"] = pe.FILE_HEADER.SizeOfOptionalHeader
@@ -758,8 +781,8 @@ class HeaderFileInfo(FeatureType):
         raw_obj["optional"]["address_of_entrypoint"] = pe.OPTIONAL_HEADER.AddressOfEntryPoint
         raw_obj["optional"]["base_of_code"] = pe.OPTIONAL_HEADER.BaseOfCode
         raw_obj["optional"]["image_base"] = pe.OPTIONAL_HEADER.ImageBase
-        raw_obj["optional"]["section_alignment"] =  pe.OPTIONAL_HEADER.SectionAlignment
-        raw_obj["optional"]["checksum"] =  pe.OPTIONAL_HEADER.CheckSum
+        raw_obj["optional"]["section_alignment"] = pe.OPTIONAL_HEADER.SectionAlignment
+        raw_obj["optional"]["checksum"] = pe.OPTIONAL_HEADER.CheckSum
         raw_obj["optional"]["number_of_rvas_and_sizes"] = pe.OPTIONAL_HEADER.NumberOfRvaAndSizes
         raw_obj["optional"]["dll_characteristics"] = [
             k[25:] for k, v in pe.OPTIONAL_HEADER.__dict__.items() if k.startswith("IMAGE_DLLCHARACTERISTICS_") and v
@@ -781,8 +804,10 @@ class HeaderFileInfo(FeatureType):
                 raw_obj["coff"]["number_of_symbols"],
                 raw_obj["coff"]["sizeof_optional_header"],
                 raw_obj["coff"]["pointer_to_symbol_table"],
-                self._machine_types_dict.get(raw_obj["coff"]["machine"], 0),  # Categorical
-                self._subsystem_types_dict.get(raw_obj["optional"]["subsystem"], 0),  # Categorical
+                self._machine_types_dict.get(
+                    raw_obj["coff"]["machine"], 0),  # Categorical
+                self._subsystem_types_dict.get(
+                    raw_obj["optional"]["subsystem"], 0),  # Categorical
                 raw_obj["optional"]["major_image_version"],
                 raw_obj["optional"]["minor_image_version"],
                 raw_obj["optional"]["major_linker_version"],
@@ -806,8 +831,10 @@ class HeaderFileInfo(FeatureType):
                 raw_obj["optional"]["section_alignment"],
                 raw_obj["optional"]["checksum"],
                 raw_obj["optional"]["number_of_rvas_and_sizes"],
-                [ch in raw_obj["coff"]["characteristics"] for ch in self._image_characteristics],
-                [ch in raw_obj["optional"]["dll_characteristics"] for ch in self._dll_characteristics],
+                [ch in raw_obj["coff"]["characteristics"]
+                    for ch in self._image_characteristics],
+                [ch in raw_obj["optional"]["dll_characteristics"]
+                    for ch in self._dll_characteristics],
                 [raw_obj["dos"][member] for member in self._dos_members],
             ]
         ).astype(np.float32)
@@ -900,8 +927,10 @@ class RichHeader(FeatureType):
             return np.zeros(self.dim, dtype=np.float32)
 
         number_of_pairs = int(len(raw_obj) / 2)
-        paired_values = [(str(raw_obj[i]), raw_obj[i + 1]) for i in range(0, len(raw_obj) - 1, 2)]
-        paired_values_hashed = FeatureHasher(32, input_type="pair").transform([paired_values]).toarray()[0]
+        paired_values = [(str(raw_obj[i]), raw_obj[i + 1])
+                         for i in range(0, len(raw_obj) - 1, 2)]
+        paired_values_hashed = FeatureHasher(32, input_type="pair").transform([
+            paired_values]).toarray()[0]
         return np.hstack([number_of_pairs, paired_values_hashed]).astype(np.float32)
 
 
@@ -997,7 +1026,7 @@ class PEFormatWarnings(FeatureType):
         self.warning_prefixes = set()
         self.warning_suffixes = set()
         self.warning_ids = {}
-        
+
         if isinstance(warnings_file, Path) and warnings_file.exists():
             with open(warnings_file, "r") as f:
                 i = 0
@@ -1035,7 +1064,6 @@ class PEFormatWarnings(FeatureType):
                 print("WARN: Unknown pefile warning:", warning)
 
         return sorted(warnings_norm)
-
 
     def process_raw_features(self, raw_obj):
         if not raw_obj:
@@ -1078,7 +1106,8 @@ class PEFeatureExtractor(object):
         if isinstance(features_file, Path) and features_file.exists():
             with features_file.open(encoding="utf8") as f:
                 x = json.load(f)
-                self.features = [features[feature] for feature in feature_names if x["features"].get(feature) is not None]
+                self.features = [features[feature] for feature in feature_names if x["features"].get(
+                    feature) is not None]
         else:
             self.features = [features[feature] for feature in feature_names]
 
@@ -1093,11 +1122,13 @@ class PEFeatureExtractor(object):
         except AttributeError:
             pass
         features = {"sha256": hashlib.sha256(bytez).hexdigest()}
-        features.update({fe.name: fe.raw_features(bytez, pe) for fe in self.features})
+        features.update({fe.name: fe.raw_features(bytez, pe)
+                        for fe in self.features})
         return features
 
     def process_raw_features(self, raw_obj):
-        feature_vectors = [fe.process_raw_features(raw_obj[fe.name]) for fe in self.features]
+        feature_vectors = [fe.process_raw_features(
+            raw_obj[fe.name]) for fe in self.features]
         return np.hstack(feature_vectors).astype(np.float32)
 
     def feature_vector(self, bytez):
